@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -5,7 +6,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, type User, type UserMetadata, type UserInfo, type IdTokenResult } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,16 +20,22 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth"; // Import useAuth
 import { LogIn } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  password: z.string().min(1, { message: "Password is required." }), // Allow shorter for dev password
 });
+
+// Hardcoded developer credentials
+const DEV_ADMIN_EMAIL = "devadmin@eventide.com";
+const DEV_ADMIN_PASSWORD = "devpassword";
 
 export default function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
+  const { setMockAuth } = useAuth(); // Get setMockAuth from context
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -39,10 +46,64 @@ export default function LoginForm() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    // Check for developer credentials
+    if (values.email === DEV_ADMIN_EMAIL && values.password === DEV_ADMIN_PASSWORD) {
+      const mockUserObject: User = {
+        uid: 'dev-admin-uid',
+        email: DEV_ADMIN_EMAIL,
+        displayName: 'Dev Admin (Local)',
+        emailVerified: true,
+        isAnonymous: false,
+        metadata: {
+          creationTime: new Date().toISOString(),
+          lastSignInTime: new Date().toISOString(),
+        } as UserMetadata,
+        providerData: [
+          {
+            providerId: 'password',
+            uid: 'dev-admin-uid',
+            displayName: 'Dev Admin (Local)',
+            email: DEV_ADMIN_EMAIL,
+            phoneNumber: null,
+            photoURL: null,
+          }
+        ] as UserInfo[],
+        providerId: 'firebase',
+        refreshToken: 'mock-refresh-token',
+        tenantId: null,
+        delete: async () => { console.log('Mock user delete called'); },
+        getIdToken: async (forceRefresh?: boolean) => 'mock-id-token',
+        getIdTokenResult: async (forceRefresh?: boolean) => ({
+          token: 'mock-id-token',
+          claims: { admin: true } as any, 
+          authTime: new Date().toISOString(),
+          expirationTime: new Date(Date.now() + 3600 * 1000).toISOString(),
+          issuedAtTime: new Date().toISOString(),
+          signInFactor: null,
+          signInProvider: 'password',
+        } as IdTokenResult),
+        reload: async () => { console.log('Mock user reload called'); },
+        toJSON: () => ({
+          uid: 'dev-admin-uid',
+          email: DEV_ADMIN_EMAIL,
+          displayName: 'Dev Admin (Local)',
+        }),
+      };
+      
+      setMockAuth(mockUserObject, true); // Set mock user as admin
+      toast({ title: "Developer Login Successful", description: "Logged in as local Dev Admin." });
+      router.push("/admin"); // Redirect to admin dashboard
+      return; // Skip Firebase authentication
+    }
+
+    // Regular Firebase authentication
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
       toast({ title: "Login Successful", description: "Welcome back!" });
-      router.push("/dashboard"); 
+      // Check if redirect query param exists
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirectUrl = searchParams.get('redirect') || '/dashboard';
+      router.push(redirectUrl);
     } catch (error) {
       console.error("Login error: ", error);
       toast({
@@ -57,7 +118,7 @@ export default function LoginForm() {
     <Card className="shadow-xl">
       <CardHeader>
         <CardTitle>Sign In</CardTitle>
-        <CardDescription>Enter your credentials to access your account.</CardDescription>
+        <CardDescription>Enter your credentials to access your account. (Dev: devadmin@eventide.com / devpassword)</CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>

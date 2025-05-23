@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { User } from 'firebase/auth';
@@ -11,12 +12,14 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAdmin: boolean; // Simplified admin check
+  setMockAuth: (mockUser: User | null, adminStatus: boolean) => void; // New function
 }
 
 export const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   isAdmin: false,
+  setMockAuth: () => {}, // Default no-op function
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -24,7 +27,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const setMockAuth = (mockUser: User | null, adminStatus: boolean) => {
+    setUser(mockUser);
+    setIsAdmin(adminStatus);
+    setLoading(false); // Ensure loading state is updated
+  };
+
   useEffect(() => {
+    // If a mock user is already set (e.g. by dev login), don't run Firebase auth listener immediately
+    // This check is simplistic; a more robust solution might involve a flag.
+    if (user && user.uid === 'dev-admin-uid') {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
@@ -43,9 +59,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, []); // Rerun if user changes from external source (e.g. initial load from mock)
 
-  if (loading) {
+  if (loading && !user) { // Keep loading state if user is not yet defined but loading is true
     // Basic loading state to prevent layout shifts or content flashing
     return (
       <div className="flex flex-col min-h-screen">
@@ -70,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, setMockAuth }}>
       {children}
     </AuthContext.Provider>
   );
