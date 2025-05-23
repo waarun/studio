@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -6,7 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Wand2, RefreshCw, Copy } from 'lucide-react';
-import { generateDescriptionAction } from '@/app/server-actions'; // Will create this action
+import { generateDescriptionAction } from '@/app/server-actions';
+import type { GenerateEventDescriptionOutput } from '@/ai/flows/generate-event-description';
 
 interface AiDescriptionGeneratorProps {
   eventTitle: string;
@@ -36,23 +38,35 @@ export default function AiDescriptionGenerator({
     }
 
     setIsLoading(true);
+    setAiGeneratedDescription(""); // Clear previous results
+
     try {
-      const result = await generateDescriptionAction({ title: eventTitle, keywords: eventKeywords || "" });
-      if (result.description) {
+      const result: GenerateEventDescriptionOutput | { error: string } = await generateDescriptionAction({ title: eventTitle, keywords: eventKeywords || "" });
+
+      if (result && 'error' in result && result.error) {
+        toast({
+          title: "AI Generation Failed",
+          description: result.error,
+          variant: "destructive",
+        });
+      } else if (result && 'description' in result && result.description) {
         setAiGeneratedDescription(result.description);
-        // Do not automatically update the main form field here. User should explicitly use it.
         toast({ title: "AI Description Generated", description: "Review and use the generated description below." });
       } else {
-        throw new Error("AI did not return a description.");
+        // Fallback for unexpected structure, though server action should prevent this
+        toast({
+          title: "AI Generation Error",
+          description: "Received an unexpected response structure from the AI service.",
+          variant: "destructive",
+        });
       }
-    } catch (error) {
-      console.error("AI description generation error:", error);
+    } catch (error) { // For network errors or if the action itself is unreachable
+      console.error("Error calling generateDescriptionAction:", error);
       toast({
-        title: "AI Generation Failed",
-        description: (error as Error).message || "Could not generate description.",
+        title: "AI Service Unreachable",
+        description: "Could not connect to the AI description service. Please check your connection or try again later.",
         variant: "destructive",
       });
-      setAiGeneratedDescription(""); // Clear previous if error
     } finally {
       setIsLoading(false);
     }

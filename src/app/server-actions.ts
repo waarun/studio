@@ -46,19 +46,30 @@ export async function addEvent(eventData: Omit<Event, 'id'>): Promise<{ id: stri
 // Action to generate event description using AI
 export async function generateDescriptionAction(
   input: GenerateEventDescriptionInput
-): Promise<GenerateEventDescriptionOutput> {
-  // Input validation can be added here if needed
-
+): Promise<GenerateEventDescriptionOutput | { error: string }> {
   try {
     const output = await generateEventDescription(input);
+
+    if (!output || typeof output.description !== 'string') {
+      console.error("AI flow returned an invalid or incomplete output:", output);
+      return { error: "AI service returned an unexpected or incomplete response. The generated description might be missing." };
+    }
     return output;
   } catch (error) {
-    console.error("AI description generation failed:", error);
-    // This will be caught by the client component's catch block.
-    // For a more structured error, the GenerateEventDescriptionOutput type
-    // would need to include an optional error field, and this function would return it.
-    // For now, rethrowing allows the client to handle it as a generic fetch failure for the action.
-    throw error; 
+    console.error("AI description generation server action failed:", error);
+    let errorMessage = "Failed to generate AI description due to an unexpected server error.";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    } else {
+      try {
+        errorMessage = `An unknown error occurred during AI description generation: ${JSON.stringify(error)}`;
+      } catch (e) {
+        errorMessage = "An unknown error occurred during AI description generation and it could not be stringified.";
+      }
+    }
+    return { error: errorMessage };
   }
 }
 
