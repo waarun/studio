@@ -1,3 +1,4 @@
+
 "use server";
 
 import { revalidatePath } from 'next/cache';
@@ -17,11 +18,27 @@ export async function addEvent(eventData: Omit<Event, 'id'>): Promise<{ id: stri
       updatedAt: serverTimestamp(),
     });
     revalidatePath('/'); // Revalidate home page to show new event
-    revalidatePath('/admin'); // Revalidate admin page
+    revalidatePath('/admin/events'); // Revalidate admin events page
+    revalidatePath('/admin'); // Revalidate admin dashboard page
     return { id: docRef.id };
   } catch (error) {
-    console.error("Error adding event to Firestore:", error);
-    return { error: (error as Error).message || "Failed to create event." };
+    console.error("SERVER ACTION ERROR: Error adding event to Firestore:", error); // Enhanced logging
+    let errorMessage = "Failed to create event due to an unexpected server error. Check server logs for details.";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    } else {
+      // Attempt to stringify if it's a complex object, but be cautious
+      try {
+        const errorString = JSON.stringify(error);
+        errorMessage = `Non-Error object received: ${errorString}`;
+      } catch (e) {
+        // Fallback if stringify fails or if it's a very unusual error type
+        errorMessage = "Failed to create event. An unknown error object was received by the server action.";
+      }
+    }
+    return { error: `Server Action Failed: ${errorMessage}` };
   }
 }
 
@@ -31,34 +48,16 @@ export async function generateDescriptionAction(
   input: GenerateEventDescriptionInput
 ): Promise<GenerateEventDescriptionOutput> {
   // Input validation can be added here if needed
-  // For example, using Zod to parse and validate `input`
-  // if (!input.title || input.title.trim() === "") {
-  //   return { error: "Event title is required for AI generation." };
-  // }
 
   try {
     const output = await generateEventDescription(input);
     return output;
   } catch (error) {
     console.error("AI description generation failed:", error);
-    // Return a structured error if your flow/AI model might throw specific errors
-    // For now, rethrow or return a generic error message structure
-    // For this specific setup, the AI flow should return an object,
-    // but if the call itself fails (e.g. network issue to AI service), it might throw.
-    // The flow is typed to return GenerateEventDescriptionOutput, so we assume it does,
-    // or throws an error that the calling client component's catch block will handle.
-    // It's safer to ensure this action always returns the expected Output type or a compatible error structure.
-    // However, the AI flow is already designed to return GenerateEventDescriptionOutput.
-    // If generateEventDescription itself throws, it will be caught by the client.
-    // For robustness, this server action could also catch and format.
-    // For now, assume generateEventDescription handles its errors or returns valid output.
-    // This is a simplification. In production, ensure error types are consistent.
-    // For this example, if generateEventDescription throws, the client's catch block will handle it.
-    // But if we want server-side formatted errors:
-    // return { description: "", error: (error as Error).message || "AI generation failed" };
-    // This would require changing GenerateEventDescriptionOutput to include an optional error field.
-    // The current AI flow does not define an error field in its output schema.
-    // So we let errors propagate to be caught by the client component.
+    // This will be caught by the client component's catch block.
+    // For a more structured error, the GenerateEventDescriptionOutput type
+    // would need to include an optional error field, and this function would return it.
+    // For now, rethrowing allows the client to handle it as a generic fetch failure for the action.
     throw error; 
   }
 }
@@ -81,3 +80,4 @@ export async function getEvents(count: number = 10): Promise<Event[]> {
   }
 }
 */
+
