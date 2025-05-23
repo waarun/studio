@@ -1,9 +1,10 @@
+
 "use client";
 
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { CalendarDays, Clock, MapPin, DollarSign, ArrowLeft, Ticket, Star } from 'lucide-react';
+import { CalendarDays, Clock, MapPin, DollarSign, ArrowLeft, Ticket, Star, CheckCircle } from 'lucide-react';
 import type { Event } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useWatchlist } from '@/hooks/useWatchlist';
+import { useBookingsStore } from '@/hooks/useBookingsStore'; // Import the bookings store
 
 // Dummy data - replace with API call or Firestore fetch by ID
 const DUMMY_EVENTS: Event[] = [
@@ -72,6 +74,7 @@ export default function EventDetailsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { watchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
+  const { bookedEvents, addBooking, isBooked, removeBooking } = useBookingsStore(); // Use bookings store
 
   // Find the event (replace with actual data fetching)
   const event = DUMMY_EVENTS.find(e => e.id === id);
@@ -88,10 +91,11 @@ export default function EventDetailsPage() {
     );
   }
 
-  const isWatched = watchlist.some(watchedEvent => watchedEvent.id === event.id);
+  const isEventWatched = watchlist.some(watchedEvent => watchedEvent.id === event.id);
+  const isEventBooked = isBooked(event.id);
 
   const handleWatchToggle = () => {
-    if (isWatched) {
+    if (isEventWatched) {
       removeFromWatchlist(event.id);
       toast({ title: "Removed from Watchlist", description: `"${event.title}" is no longer in your watchlist.` });
     } else {
@@ -110,11 +114,22 @@ export default function EventDetailsPage() {
       });
       return;
     }
-    // Placeholder for booking logic
-    toast({
-      title: 'Booking Successful (Placeholder)',
-      description: `You've "booked" a seat for ${event.title}. Check your dashboard!`,
-    });
+    
+    if (isEventBooked) {
+      removeBooking(event.id);
+       toast({
+        title: 'Booking Cancelled',
+        description: `Your booking for "${event.title}" has been cancelled.`,
+        variant: 'default',
+      });
+    } else {
+      addBooking(event);
+      toast({
+        title: 'Booking Successful!',
+        description: `You've booked a seat for "${event.title}". Check your dashboard!`,
+        variant: 'default',
+      });
+    }
   };
 
   return (
@@ -169,12 +184,17 @@ export default function EventDetailsPage() {
               {event.price > 0 ? `$${event.price.toFixed(2)}` : 'Free Event'}
             </div>
             <div className="flex gap-3">
-              <Button variant={isWatched ? "secondary" : "outline"} size="lg" onClick={handleWatchToggle}>
-                {isWatched ? <Star className="h-5 w-5 mr-2 fill-current" /> : <Star className="h-5 w-5 mr-2" />}
-                {isWatched ? 'Watching' : 'Add to Watchlist'}
+              <Button variant={isEventWatched ? "secondary" : "outline"} size="lg" onClick={handleWatchToggle}>
+                {isEventWatched ? <Star className="h-5 w-5 mr-2 fill-current" /> : <Star className="h-5 w-5 mr-2" />}
+                {isEventWatched ? 'Watching' : 'Add to Watchlist'}
               </Button>
-              <Button size="lg" onClick={handleBookEvent} className="bg-accent hover:bg-accent/90">
-                <Ticket className="mr-2 h-5 w-5" /> Book Seat
+              <Button 
+                size="lg" 
+                onClick={handleBookEvent} 
+                className={isEventBooked ? "bg-green-600 hover:bg-green-700" : "bg-accent hover:bg-accent/90"}
+              >
+                {isEventBooked ? <CheckCircle className="mr-2 h-5 w-5" /> : <Ticket className="mr-2 h-5 w-5" />}
+                {isEventBooked ? 'Booked' : 'Book Seat'}
               </Button>
             </div>
           </div>

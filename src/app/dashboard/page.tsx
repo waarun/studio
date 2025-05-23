@@ -1,18 +1,21 @@
+
 "use client";
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useWatchlist } from '@/hooks/useWatchlist';
+import { useBookingsStore } from '@/hooks/useBookingsStore'; // Import bookings store
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ticket, Star, Loader2 } from 'lucide-react';
-import EventCard from '@/components/events/EventCard'; // Re-use EventCard for watched list
+import EventCard from '@/components/events/EventCard'; 
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const { watchlist } = useWatchlist();
+  const { bookedEvents } = useBookingsStore(); // Get bookedEvents from the store
 
   useEffect(() => {
     if (!loading && !user) {
@@ -31,9 +34,6 @@ export default function DashboardPage() {
   if (!user) {
     return null; // Or a message, but useEffect should redirect
   }
-
-  // Placeholder for actual bookings
-  const bookedEvents = []; 
 
   return (
     <div className="space-y-8">
@@ -57,9 +57,8 @@ export default function DashboardPage() {
                 <Button onClick={() => router.push('/')}>Explore Events</Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Placeholder for booked event cards */}
-                {/* {bookedEvents.map(event => <BookedEventCard key={event.id} event={event} />)} */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {bookedEvents.map(event => <EventCard key={event.id} event={event} />)}
               </div>
             )}
           </CardContent>
