@@ -30,7 +30,8 @@ const formSchema = z.object({
 
 // Hardcoded developer credentials
 const DEV_ADMIN_EMAIL = "devadmin@eventide.com";
-const DEV_ADMIN_PASSWORD = "devpassword";
+const DEV_USER_EMAIL = "devuser@eventide.com";
+const DEV_PASSWORD = "devpassword"; // Same password for simplicity
 
 export default function LoginForm() {
   const router = useRouter();
@@ -46,9 +47,9 @@ export default function LoginForm() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    // Check for developer credentials
-    if (values.email === DEV_ADMIN_EMAIL && values.password === DEV_ADMIN_PASSWORD) {
-      const mockUserObject: User = {
+    // Check for developer admin credentials
+    if (values.email === DEV_ADMIN_EMAIL && values.password === DEV_PASSWORD) {
+      const mockAdminUserObject: User = {
         uid: 'dev-admin-uid',
         email: DEV_ADMIN_EMAIL,
         displayName: 'Dev Admin (Local)',
@@ -71,11 +72,61 @@ export default function LoginForm() {
         providerId: 'firebase',
         refreshToken: 'mock-refresh-token',
         tenantId: null,
-        delete: async () => { console.log('Mock user delete called'); },
-        getIdToken: async (forceRefresh?: boolean) => 'mock-id-token',
+        delete: async () => { console.log('Mock admin user delete called'); },
+        getIdToken: async (forceRefresh?: boolean) => 'mock-id-token-admin',
         getIdTokenResult: async (forceRefresh?: boolean) => ({
-          token: 'mock-id-token',
+          token: 'mock-id-token-admin',
           claims: { admin: true } as any, 
+          authTime: new Date().toISOString(),
+          expirationTime: new Date(Date.now() + 3600 * 1000).toISOString(),
+          issuedAtTime: new Date().toISOString(),
+          signInFactor: null,
+          signInProvider: 'password',
+        } as IdTokenResult),
+        reload: async () => { console.log('Mock admin user reload called'); },
+        toJSON: () => ({
+          uid: 'dev-admin-uid',
+          email: DEV_ADMIN_EMAIL,
+          displayName: 'Dev Admin (Local)',
+        }),
+      };
+      
+      setMockAuth(mockAdminUserObject, true); // Set mock user as admin
+      toast({ title: "Developer Admin Login Successful", description: "Logged in as local Dev Admin." });
+      router.push("/admin"); 
+      return; 
+    }
+
+    // Check for developer regular user credentials
+    if (values.email === DEV_USER_EMAIL && values.password === DEV_PASSWORD) {
+      const mockUserObject: User = {
+        uid: 'dev-user-uid',
+        email: DEV_USER_EMAIL,
+        displayName: 'Dev User (Local)',
+        emailVerified: true,
+        isAnonymous: false,
+        metadata: {
+          creationTime: new Date().toISOString(),
+          lastSignInTime: new Date().toISOString(),
+        } as UserMetadata,
+        providerData: [
+          {
+            providerId: 'password',
+            uid: 'dev-user-uid',
+            displayName: 'Dev User (Local)',
+            email: DEV_USER_EMAIL,
+            phoneNumber: null,
+            photoURL: null,
+          }
+        ] as UserInfo[],
+        providerId: 'firebase',
+        refreshToken: 'mock-refresh-token-user',
+        tenantId: null,
+        delete: async () => { console.log('Mock user delete called'); },
+        getIdToken: async (forceRefresh?: boolean) => 'mock-id-token-user',
+        getIdTokenResult: async (forceRefresh?: boolean) => ({
+          token: 'mock-id-token-user',
+          claims: { admin: false } as any, // Regular user, so admin is false
           authTime: new Date().toISOString(),
           expirationTime: new Date(Date.now() + 3600 * 1000).toISOString(),
           issuedAtTime: new Date().toISOString(),
@@ -84,16 +135,16 @@ export default function LoginForm() {
         } as IdTokenResult),
         reload: async () => { console.log('Mock user reload called'); },
         toJSON: () => ({
-          uid: 'dev-admin-uid',
-          email: DEV_ADMIN_EMAIL,
-          displayName: 'Dev Admin (Local)',
+          uid: 'dev-user-uid',
+          email: DEV_USER_EMAIL,
+          displayName: 'Dev User (Local)',
         }),
       };
       
-      setMockAuth(mockUserObject, true); // Set mock user as admin
-      toast({ title: "Developer Login Successful", description: "Logged in as local Dev Admin." });
-      router.push("/admin"); // Redirect to admin dashboard
-      return; // Skip Firebase authentication
+      setMockAuth(mockUserObject, false); // Set mock user as non-admin
+      toast({ title: "Developer User Login Successful", description: "Logged in as local Dev User." });
+      router.push("/dashboard"); // Redirect to dashboard for regular users
+      return;
     }
 
     // Regular Firebase authentication
@@ -118,7 +169,11 @@ export default function LoginForm() {
     <Card className="shadow-xl">
       <CardHeader>
         <CardTitle>Sign In</CardTitle>
-        <CardDescription>Enter your credentials to access your account. (Dev: devadmin@eventide.com / devpassword)</CardDescription>
+        <CardDescription>
+          Enter your credentials. Dev Logins:<br/>
+          Admin: devadmin@eventide.com / devpassword<br/>
+          User: devuser@eventide.com / devpassword
+        </CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
