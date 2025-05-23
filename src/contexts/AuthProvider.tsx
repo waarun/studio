@@ -1,25 +1,34 @@
 
 "use client";
 
-import type { User } from 'firebase/auth';
+import type { User, IdTokenResult, UserMetadata } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { ReactNode } from 'react';
 import React, { createContext, useEffect, useState } from 'react';
 import { auth } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton'; // For loading state
 
+const MOCK_USER_STORAGE_KEY = 'eventideMockUser';
+
+interface StoredMockUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  isAdmin: boolean;
+}
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  isAdmin: boolean; // Simplified admin check
-  setMockAuth: (mockUser: User | null, adminStatus: boolean) => void; // New function
+  isAdmin: boolean;
+  setMockAuth: (mockUser: User | null, adminStatus: boolean) => void;
 }
 
 export const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   isAdmin: false,
-  setMockAuth: () => {}, // Default no-op function
+  setMockAuth: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -27,41 +36,99 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Effect to load mock user from localStorage on initial client-side mount
+  useEffect(() => {
+    // This code runs only on the client after hydration
+    try {
+      const storedMockUserJSON = localStorage.getItem(MOCK_USER_STORAGE_KEY);
+      if (storedMockUserJSON) {
+        const storedMockUser: StoredMockUser = JSON.parse(storedMockUserJSON);
+        // Create a User-like object from stored data
+        const mockUserForState: User = {
+          uid: storedMockUser.uid,
+          email: storedMockUser.email,
+          displayName: storedMockUser.displayName,
+          emailVerified: true, // Assume verified for mock
+          isAnonymous: false,
+          metadata: { creationTime: new Date().toISOString(), lastSignInTime: new Date().toISOString() } as UserMetadata,
+          providerData: [],
+          providerId: 'mock',
+          refreshToken: 'mock-refresh-token',
+          delete: async () => { console.log('Mock user delete called'); },
+          getIdToken: async () => 'mock-id-token',
+          getIdTokenResult: async () => ({
+            token: 'mock-id-token',
+            claims: { admin: storedMockUser.isAdmin } as any, // Cast to any for simplicity on claims
+            authTime: new Date().toISOString(),
+            expirationTime: new Date(Date.now() + 3600 * 1000).toISOString(),
+            issuedAtTime: new Date().toISOString(),
+            signInFactor: null,
+            signInProvider: 'mock',
+          } as IdTokenResult),
+          reload: async () => { console.log('Mock user reload called'); },
+          toJSON: () => ({ uid: storedMockUser.uid, email: storedMockUser.email, displayName: storedMockUser.displayName }),
+        };
+        setUser(mockUserForState);
+        setIsAdmin(storedMockUser.isAdmin);
+        setLoading(false); // Mock user loaded, initial loading phase for mock path is done
+      }
+    } catch (error) {
+      console.error("Failed to load mock user from localStorage:", error);
+      localStorage.removeItem(MOCK_USER_STORAGE_KEY); // Clear corrupted data
+    }
+    // If no mock user in localStorage, setLoading(false) will be handled by onAuthStateChanged
+  }, []); // Empty array means this runs once on mount (client-side)
+
   const setMockAuth = (mockUser: User | null, adminStatus: boolean) => {
     setUser(mockUser);
     setIsAdmin(adminStatus);
-    setLoading(false); // Ensure loading state is updated
+    if (mockUser) {
+      const storableMockUser: StoredMockUser = {
+        uid: mockUser.uid,
+        email: mockUser.email,
+        displayName: mockUser.displayName,
+        isAdmin: adminStatus,
+      };
+      localStorage.setItem(MOCK_USER_STORAGE_KEY, JSON.stringify(storableMockUser));
+    } else {
+      localStorage.removeItem(MOCK_USER_STORAGE_KEY);
+    }
+    setLoading(false); // State is now determined (either mock or no mock)
   };
 
+  // Effect for Firebase Auth state listener
   useEffect(() => {
-    // If a mock user is already set (e.g. by dev login), don't run Firebase auth listener immediately
-    // This check is simplistic; a more robust solution might involve a flag.
-    if (user && user.uid === 'dev-admin-uid') {
-      setLoading(false);
-      return;
-    }
-
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
       if (firebaseUser) {
-        // Simplified admin check: check for a specific UID or a custom claim
-        // For a real app, use custom claims set on the backend
-        // e.g. const tokenResult = await firebaseUser.getIdTokenResult();
-        // setIsAdmin(!!tokenResult.claims.admin);
-        
-        // Placeholder: if user's email contains 'admin', consider them admin.
-        // Replace this with proper role management (e.g. custom claims via Firebase Functions)
-        setIsAdmin(firebaseUser.email?.includes('admin@eventide.com') || false);
+        // Real Firebase user logged in
+        setUser(firebaseUser);
+        // Admin check logic for real Firebase user
+        const emailIsAdmin = firebaseUser.email?.includes('admin@eventide.com') || false;
+        // In a real app, use custom claims:
+        // const tokenResult = await firebaseUser.getIdTokenResult();
+        // const claimsAdmin = !!tokenResult.claims.admin;
+        setIsAdmin(emailIsAdmin /* || claimsAdmin */);
+        localStorage.removeItem(MOCK_USER_STORAGE_KEY); // Real user takes precedence, clear any mock user
       } else {
-        setIsAdmin(false);
+        // No Firebase user (logout or initial state with no session)
+        // If a mock user isn't currently intended to be active (i.e., not in localStorage from a setMockAuth call or initial load),
+        // then ensure user state is null.
+        const mockUserStillInStorage = localStorage.getItem(MOCK_USER_STORAGE_KEY);
+        if (!mockUserStillInStorage) {
+          setUser(null);
+          setIsAdmin(false);
+        }
+        // If mockUserStillInStorage *is* present, it means a mock user is intended to be active,
+        // so onAuthStateChanged(null) shouldn't clear the React state for that user.
+        // It will be cleared by an explicit call to setMockAuth(null, ...) e.g. during mock logout.
       }
-      setLoading(false);
+      setLoading(false); // Firebase auth state determined, or re-confirmed, loading is complete.
     });
 
     return () => unsubscribe();
-  }, []); // Rerun if user changes from external source (e.g. initial load from mock)
+  }, []); // Empty array means this runs once on mount for listener setup
 
-  if (loading && !user) { // Keep loading state if user is not yet defined but loading is true
+  if (loading) {
     // Basic loading state to prevent layout shifts or content flashing
     return (
       <div className="flex flex-col min-h-screen">
@@ -83,7 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  
 
   return (
     <AuthContext.Provider value={{ user, loading, isAdmin, setMockAuth }}>

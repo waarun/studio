@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -10,13 +11,15 @@ import { signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Navbar() {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading, isAdmin, setMockAuth } = useAuth(); // Added setMockAuth
   const router = useRouter();
   const { toast } = useToast();
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await signOut(auth); // This will trigger onAuthStateChanged in AuthProvider
+      // Explicitly clear mock auth state from React state and localStorage
+      setMockAuth(null, false); 
       toast({ title: 'Logged out successfully.' });
       router.push('/');
     } catch (error) {
