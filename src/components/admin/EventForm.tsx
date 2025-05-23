@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,7 +20,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/hooks/use-toast";
 import type { Event } from "@/types";
 import AiDescriptionGenerator from "./AiDescriptionGenerator";
-import { addEvent } from "@/app/server-actions"; // We will create this server action
+import { addEvent } from "@/app/server-actions";
 
 const formSchema = z.object({
   title: z.string().min(3, { message: "Title must be at least 3 characters." }).max(100),
@@ -74,7 +75,7 @@ export default function EventForm({ initialData }: EventFormProps) {
 
   async function onSubmit(values: EventFormValues) {
     try {
-      const eventData: Omit<Event, 'id'> = { // Type for data to be sent
+      const eventData: Omit<Event, 'id'> = {
         title: values.title,
         date: values.date,
         time: values.time,
@@ -88,14 +89,20 @@ export default function EventForm({ initialData }: EventFormProps) {
 
       if (initialData?.id) {
         // Call updateEvent server action (to be created)
-        // await updateEvent(initialData.id, eventData);
+        // const result = await updateEvent(initialData.id, eventData);
+        // if (result && 'error' in result && result.error) {
+        //   throw new Error(result.error);
+        // }
         toast({ title: "Event Updated (Placeholder)", description: `${values.title} has been updated.` });
       } else {
-        await addEvent(eventData);
+        const result = await addEvent(eventData);
+        if (result && 'error' in result && result.error) {
+          throw new Error(result.error); // This will be caught by the catch block below
+        }
         toast({ title: "Event Created", description: `${values.title} has been successfully created.` });
       }
-      router.push("/admin"); // Or to the event list/details page
-      router.refresh(); // Ensure data is fresh if staying on admin page
+      router.push("/admin/events");
+      router.refresh();
     } catch (error) {
       console.error("Event submission error:", error);
       toast({
@@ -259,3 +266,4 @@ export default function EventForm({ initialData }: EventFormProps) {
     </Card>
   );
 }
+
