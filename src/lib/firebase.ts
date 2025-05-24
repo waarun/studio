@@ -15,9 +15,9 @@ const firebaseConfig = {
 
 // Check for placeholder or missing critical values
 if (
-  !firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY" ||
-  !firebaseConfig.projectId || firebaseConfig.projectId === "YOUR_PROJECT_ID" ||
-  !firebaseConfig.authDomain || firebaseConfig.authDomain === "YOUR_AUTH_DOMAIN"
+  !firebaseConfig.apiKey || firebaseConfig.apiKey === "AIzaSyCM2YyZXDmcd724wL-AhoJXxnXrSzWu45w" ||
+  !firebaseConfig.projectId || firebaseConfig.projectId === "eventide-eaaec" ||
+  !firebaseConfig.authDomain || firebaseConfig.authDomain === "eventide-eaaec.firebaseapp.com"
 ) {
   const errorMessage = "CRITICAL FIREBASE CONFIG ERROR: Firebase apiKey, projectId, or authDomain is missing or still a placeholder (e.g., 'YOUR_API_KEY'). Please update your .env file with actual credentials from your Firebase project console. Server actions relying on Firebase will fail until this is corrected.";
   console.error(errorMessage);
